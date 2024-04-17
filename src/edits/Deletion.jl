@@ -1,8 +1,14 @@
+### -*- Mode: Julia -*-
+
+### Deletion.jl
+###
+### Definitions about `deletions`.
+
 """
     Deletion
 
-Represents the deletion of N symbols. The location of the deletion is stored
-outside this struct
+Represents the deletion of N symbols. The location of the deletion is
+stored outside this struct
 """
 struct Deletion
     len::UInt
@@ -12,13 +18,24 @@ struct Deletion
         return new(len)
     end
 end
+
+
 Deletion(x::Integer) = Deletion(convert(UInt, x))
+
+
+### Interfaces extenstions.
+
+### Base functions.
 
 Base.length(x::Deletion) = Int(x.len)
 Base.:(==)(x::Deletion, y::Deletion) = length(x) == length(y)
 Base.hash(x::Deletion, h::UInt) = hash(Deletion, hash(x.len, h))
 
-function _refbases(d::Deletion, reference::S, pos::UInt) where {S<:BioSequence}
+
+### Deletion functions.
+
+function _refbases(d::Deletion, reference::S, pos::UInt) where
+    {S <: BioSequence}
     if pos == 1
         return S(reference[UnitRange{Int}(pos, pos + length(d))])
     else
@@ -26,10 +43,15 @@ function _refbases(d::Deletion, reference::S, pos::UInt) where {S<:BioSequence}
     end
 end
 
-function _altbases(::Deletion, reference::S, pos::UInt) where {S<:BioSequence}
+
+function _altbases(::Deletion, reference::S, pos::UInt) where
+    {S <: BioSequence}
     if pos == 1
         return S([reference[pos + 1]])
     else
         return S([reference[pos - 1]])
     end
 end
+
+
+### Deletion.jl ends here.

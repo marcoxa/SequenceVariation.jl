@@ -1,42 +1,65 @@
-"""
-    Haplotype{S<:BioSequence,T<:BioSymbol}
+### -*- Mode: Julia -*-
 
-A set of variations within a given sequence that are all found together. Depending on the
-field, it might also be referred to as a "genotype" or "strain."
+### Haplotype.jl
+###
+### Code for the representation and handling of `haplotypes`.
+
+
+"""
+    Haplotype{S <: BioSequence, T <: BioSymbol}
+
+A set of variations within a given sequence that are all found
+together. Depending on the field, it might also be referred to as a
+"genotype" or "strain."
 
 # Constructors
 
-    Haplotype(ref::S, edits::Vector{Edit{S,T}}) where {S<:BioSequence,T<:BioSymbol}
-    Haplotype(ref::S, vars::Vector{Variation{S,T}}) where {S<:BioSequence,T<:BioSymbol}
-    Haplotype(
-        aln::PairwiseAlignment{T,T}
-    ) where {T<:LongSequence{<:Union{BS.AminoAcidAlphabet,BS.NucleicAcidAlphabet}}}
+    Haplotype(ref::S, edits::Vector{Edit{S, T}}) where
+     {S <: BioSequence, T <: BioSymbol}
+    Haplotype(ref::S, vars::Vector{Variation{S, T}}) where
+     {S <: BioSequence, T <: BioSymbol}
+    Haplotype(aln::PairwiseAlignment{T, T}) where
+     {T <: LongSequence{<: Union{BS.AminoAcidAlphabet,
+                                 BS.NucleicAcidAlphabet}}}
 
-When constructing a `Haplotype` from a vector of [`Edit`](@ref)s or [`Variation`](@ref)s,
-the edits are applied sequentially from first to last position, therefore the vector must
-always be sorted by position. These edits are sorted automatically if constructing from an
+When constructing a `Haplotype` from a vector of [`Edit`](@ref)s or
+[`Variation`](@ref)s, the edits are applied sequentially from first to
+last position, therefore the vector must always be sorted by
+position. These edits are sorted automatically if constructing from an
 alignment.
 """
-struct Haplotype{S<:BioSequence,T<:BioSymbol}
+struct Haplotype{S <: BioSequence, T <: BioSymbol}
     ref::S
-    edits::Vector{Edit{S,T}}
+    edits::Vector{Edit{S, T}}
 
-    Haplotype{S,T}(ref::S, edits::Vector{Edit{S,T}}, ::Unsafe) where {S,T} = new(ref, edits)
+    function Haplotype{S, T}(ref::S, edits::Vector{Edit{S, T}}, ::Unsafe) where
+        {S, T}
+        new(ref, edits)
+    end
 end
 
-function Haplotype{S,T}(
-    ref::S, edits::Vector{Edit{S,T}}
-) where {S<:BioSequence,T<:BioSymbol}
-    sort!(edits; by=x -> x.pos)
-    result = Haplotype{S,T}(ref, edits, Unsafe())
+
+### Constructors
+
+function Haplotype{S, T}(ref::S, edits::Vector{Edit{S, T}}) where
+    {S <: BioSequence, T <: BioSymbol}
+    sort!(edits; by = x -> x.pos)
+    result = Haplotype{S, T}(ref, edits, Unsafe())
     valid, message = _is_valid(result)
     valid || error(message)
     return result
 end
 
-function Haplotype(ref::S, edits::Vector{Edit{S,T}}) where {S<:BioSequence,T<:BioSymbol}
-    return Haplotype{S,T}(ref, edits)
+
+function Haplotype(ref::S, edits::Vector{Edit{S, T}}) where
+    {S <: BioSequence, T <: BioSymbol}
+    return Haplotype{S, T}(ref, edits)
 end
+
+
+### Interfaces extensions.
+
+### Base
 
 function Base.show(io::IO, x::Haplotype)
     n = length(x.edits)
@@ -48,72 +71,96 @@ function Base.show(io::IO, x::Haplotype)
     end
 end
 
-"""
-    _is_valid(h::Haplotype{S,T}) where {S,T}
 
-Validate `h`. `h` is invalid if any of its operations are out of bounds, or the same
-position is affected by multiple edits.
+### Haplotype functions
+
 """
-function _is_valid(h::Haplotype{S,T}) where {S,T}
-    # Empty references mean we have nothing to compare to
+    _is_valid(h::Haplotype{S, T}) where {S, T}
+
+Validate `h`. `h` is invalid if any of its operations are out of
+bounds, or the same position is affected by multiple edits.
+"""
+function _is_valid(h::Haplotype{S, T}) where {S, T}
+    ## Empty references mean we have nothing to compare to
+    
     isempty(reference(h)) && return (false, "Empty reference")
-    # Empty edits simple means that this is the reference haplotype
+    
+    ## Empty edits simple means that this is the reference haplotype
+    
     isempty(_edits(h)) && return (true, "")
 
-    # It is valid for edits to exist within the space between the first edit and the entire
-    # length of the reference. The reason we can't use simply use the length of the reference
-    # is because we couldn't tell if a starting insertion overlapped with a future edit that
-    # way. Also, force the range to be a signed integer to avoid subtraction overflow errors
-    # when there is a starting insertion.
-    valid_positions = UnitRange{Int128}(
-        leftposition(first(_edits(h))), UInt64(length(reference(h)))
+    ## It is valid for edits to exist within the space between the
+    ## first edit and the entire length of the reference. The reason
+    ## we can't use simply use the length of the reference is because
+    ## we couldn't tell if a starting insertion overlapped with a
+    ## future edit that way. Also, force the range to be a signed
+    ## integer to avoid subtraction overflow errors when there is a
+    ## starting insertion.
+    
+    valid_positions = UnitRange{Int128}(leftposition(first(_edits(h))),
+                                        UInt64(length(reference(h)))
     )
-    # Placeholder flag for iterating through multiple insertions at the same position
+
+    ## Placeholder flag for iterating through multiple insertions at
+    ## the same position.
+    
     last_was_insert = false
 
     for edit in _edits(h)
         pos = leftposition(edit)
         op = _mutation(edit)
 
-        # Sanity check: for this to be a valid variant, it must be comprised of valid
-        # variations
+        ## Sanity check: for this to be a valid variant, it must be
+        ## comprised of valid variations.
+        
         _is_valid(Variation{S,T}(h.ref, edit, Unsafe())) ||
             return (false, "Invalid Variation")
 
         if op isa Substitution
-            # For substitutions we simply do not allow another modification of the same base
+            ## For substitutions we simply do not allow another
+            ## modification of the same base.
+            
             pos in valid_positions ||
                 return (false, "Multiple modifications at same position")
 
-            # Invalidate this base's and all previous positions. This only works because
-            # we're working with a pre-sorted list of edits.
+            ## Invalidate this base's and all previous positions. This
+            ## only works because we're working with a pre-sorted list
+            ## of edits.
+            
             valid_positions = (pos + 1):last(valid_positions)
             last_was_insert = false
+            
         elseif op isa Insertion
-            # Insertions affect 0 reference bases, so it does not modify the valid positions
-            # for next op. However, we cannot have two insertions at the same position, because
-            # then the order of them is ambiguous
-            pos in (
-                (first(valid_positions) - 1 + 2 * last_was_insert):(last(valid_positions) + 1)
+            ## Insertions affect 0 reference bases, so it does not
+            ## modify the valid positions for next op. However, we
+            ## cannot have two insertions at the same position,
+            ## because then the order of them is ambiguous.
+            
+            pos in ((first(valid_positions) - 1 + 2 * last_was_insert)
+                    : (last(valid_positions) + 1)
             ) || return (false, "Multiple insertions at same position")
 
             last_was_insert = true
+            
         elseif op isa Deletion
-            # Deletions obviously invalidate the reference bases that are deleted.
+            ## Deletions obviously invalidate the reference bases that
+            ## are deleted.
+            
             len = length(op)
             pos in (first(valid_positions):(last(valid_positions) - len + 1)) ||
                 return (false, "Deletion out of range")
 
-            valid_positions = (first(valid_positions) + len):last(valid_positions)
+            valid_positions = ((first(valid_positions) + len)
+                               : last(valid_positions))
             last_was_insert = false
         end
     end
     return (true, "")
 end
 
-function Haplotype(
-    aln::PairwiseAlignment{T,T}
-) where {T<:LongSequence{<:Union{BS.AminoAcidAlphabet,BS.NucleicAcidAlphabet}}}
+
+function Haplotype(aln::PairwiseAlignment{T, T}) where
+    {T <: LongSequence{<: Union{BS.AminoAcidAlphabet, BS.NucleicAcidAlphabet}}}
     ref = aln.b
     E = eltype(typeof(ref))
     edits = Edit{T,E}[]
@@ -126,7 +173,8 @@ function Haplotype(
         isgap(refi) || (refpos += 1)
         isgap(seqi) || (seqpos += 1)
 
-        # Check for deletions
+        ## Check for deletions.
+        
         if isgap(seqi)
             iszero(n_gaps) && (markpos = refpos)
             n_gaps += 1
@@ -135,7 +183,8 @@ function Haplotype(
             n_gaps = 0
         end
 
-        # Check for insertions
+        ## Check for insertions.
+        
         if isgap(refi)
             iszero(n_ins) && (markpos = refpos + 1)
             push!(insertion_buffer, seqi)
@@ -147,26 +196,30 @@ function Haplotype(
             n_ins = 0
         end
 
-        # Substitutions
+        ## Substitutions.
+        
         if !isgap(refi) && !isgap(seqi) && seqi != refi
             push!(edits, Edit{T,E}(Substitution{E}(seqi), UInt(refpos)))
         end
     end
 
-    # Check for clips at the end of the alignment
+    ## Check for clips at the end of the alignment.
+    
     last_anchors = aln.a.aln.anchors[(end - 1):end]
 
-    # Final indel, if applicable
+    ## Final indel, if applicable.
     if !any(anchor -> anchor.op == OP_SOFT_CLIP, last_anchors)
         if !iszero(n_gaps)
-            push!(edits, Edit{T,E}(Deletion(UInt(n_gaps)), UInt(markpos)))
+            push!(edits, Edit{T, E}(Deletion(UInt(n_gaps)), UInt(markpos)))
         elseif !iszero(n_ins)
-            push!(edits, Edit{T,E}(Insertion(T(insertion_buffer)), UInt(markpos)))
+            push!(edits, Edit{T, E}(Insertion(T(insertion_buffer)),
+                                    UInt(markpos)))
         end
     end
 
     return Haplotype(ref, edits)
 end
+
 
 """
     _edits(h::Haplotype)
@@ -174,6 +227,7 @@ end
 Gets the [`Edit`](@ref)s that comprise `h`
 """
 _edits(h::Haplotype) = h.edits
+
 
 """
     reference(h::Haplotype)
@@ -183,10 +237,12 @@ Gets the reference sequence of `h`.
 reference(h::Haplotype) = h.ref
 Base.:(==)(x::Haplotype, y::Haplotype) = x.ref == y.ref && x.edits == y.edits
 
+
 """
     reconstruct(h::Haplotype)
 
-Apply the edits in `h` to the reference sequence of `h` and return the mutated sequence
+Apply the edits in `h` to the reference sequence of `h` and return the
+mutated sequence.
 """
 function reconstruct(h::Haplotype)
     len = length(reference(h)) + sum(edit -> _lendiff(edit), _edits(h))
@@ -221,16 +277,18 @@ function reconstruct(h::Haplotype)
     return seq
 end
 
-"""
-    translate(hap::Haplotype{S,T}, aln::PairwiseAlignment{S,S}) where {S,T}
 
-Convert the variations in `hap` to a new reference sequence based upon `aln`. The alignment
-rules follow the conventions of
+"""
+    translate(hap::Haplotype{S, T}, aln::PairwiseAlignment{S,S}) where {S, T}
+
+Convert the variations in `hap` to a new reference sequence based upon
+`aln`. The alignment rules follow the conventions of
 [`translate(::Variation, PairwiseAlignment)`](@ref translate(::Variation{S,T}, ::PairwiseAlignment{S,S}) where {S,T}).
 Indels at the beginning or end may not be preserved. Returns a new
 [`Haplotype`](@ref)
 """
-function translate(hap::Haplotype{S,T}, aln::PairwiseAlignment{S,S}) where {S,T}
+function translate(hap::Haplotype{S, T},
+                   aln::PairwiseAlignment{S, S}) where {S, T}
     vars = variations(hap)
     new_ref = BA.sequence(aln)
     translated_vars = Variation{S,T}[]
@@ -240,3 +298,5 @@ function translate(hap::Haplotype{S,T}, aln::PairwiseAlignment{S,S}) where {S,T}
     end
     return Haplotype(new_ref, translated_vars)
 end
+
+### Haplotype.jl ends here.

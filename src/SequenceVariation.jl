@@ -1,14 +1,21 @@
+### -*- Mode: Julia -*-
+
+### SequenceVariation.jl
+###
+### Main `module` file.
+
 module SequenceVariation
 
 """
 Needs to be able to:
-* Given a sequence and a reference, create a `Haplotype` that unambiguously represents
-the sequence
+* Given a sequence and a reference, create a `Haplotype` that
+  unambiguously represents the sequence.
 
-* Given a `Haplotype` and a new reference, translate the variant to the new reference.
+* Given a `Haplotype` and a new reference, translate the variant to
+  the new reference.
 
-* Given a mutation and a reference and a sequence, determine if the sequence has that
-mutation
+* Given a mutation and a reference and a sequence, determine if the
+  sequence has that mutation.
 
 TODO now:
 * Play around with some NGS results rel. to picked reference.
@@ -22,7 +29,8 @@ TODO now:
 
 using BioAlignments: BioAlignments, PairwiseAlignment, OP_SOFT_CLIP, sequence
 using BioGenerics: BioGenerics, leftposition, rightposition
-using BioSequences: BioSequences, BioSequence, NucleotideSeq, LongSequence, isgap
+using BioSequences: BioSequences, BioSequence, NucleotideSeq,
+    LongSequence, isgap
 using BioSymbols: BioSymbol
 
 export Deletion
@@ -49,3 +57,5 @@ include("Haplotype.jl")
 include("Variation.jl")
 
 end # module
+
+### SequenceVariation.jl ends here.
